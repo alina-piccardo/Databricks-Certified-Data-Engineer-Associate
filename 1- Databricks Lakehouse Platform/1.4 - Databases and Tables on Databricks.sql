@@ -4,7 +4,7 @@
 
 -- COMMAND ----------
 
-USE CATALOG hive_metastore;
+USE CATALOG workspace;
 
 CREATE TABLE managed_default
   (width INT, length INT, height INT);
@@ -47,7 +47,7 @@ DROP TABLE managed_default
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/managed_default'
+DESCRIBE EXTENDED managed_default
 
 -- COMMAND ----------
 
@@ -55,7 +55,7 @@ DROP TABLE external_default
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/mnt/demo/external_default'
+DESCRIBE EXTENDED external_default
 
 -- COMMAND ----------
 
@@ -104,11 +104,11 @@ DROP TABLE external_new_default;
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/new_default.db/managed_new_default'
+DESCRIBE EXTENDED managed_new_default
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/mnt/demo/external_new_default'
+DESCRIBE EXTENDED external_new_default
 
 -- COMMAND ----------
 
@@ -158,8 +158,8 @@ DROP TABLE external_custom;
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/Shared/schemas/custom.db/managed_custom'
+DESCRIBE EXTENDED managed_custom
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/mnt/demo/external_custom'
+DESCRIBE EXTENDED external_custom

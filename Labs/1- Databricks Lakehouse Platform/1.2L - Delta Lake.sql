@@ -12,7 +12,7 @@
 
 -- COMMAND ----------
 
-USE CATALOG hive_metastore;
+USE CATALOG workspace;
 
 CREATE OR REPLACE TABLE persons
   (id INT, name STRING, age INT);

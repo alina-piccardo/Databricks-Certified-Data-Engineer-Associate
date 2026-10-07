@@ -11,7 +11,7 @@
 
 -- COMMAND ----------
 
-USE CATALOG hive_metastore;
+USE CATALOG workspace;
 
 -- COMMAND ----------
 
@@ -95,7 +95,7 @@ DESCRIBE EXTENDED actors_external
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/movies_managed'
+DESCRIBE EXTENDED movies_managed
 
 -- COMMAND ----------
 
@@ -115,7 +115,7 @@ DROP TABLE actors_external
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/mnt/demo/actors_external'
+DESCRIBE EXTENDED actors_external
 
 -- COMMAND ----------
 

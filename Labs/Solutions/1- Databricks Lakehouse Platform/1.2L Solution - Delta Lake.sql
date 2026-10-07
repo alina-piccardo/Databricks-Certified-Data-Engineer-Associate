@@ -12,7 +12,7 @@
 
 -- COMMAND ----------
 
-USE CATALOG hive_metastore;
+USE CATALOG workspace;
 
 CREATE OR REPLACE TABLE persons
   (id INT, name STRING, age INT);
@@ -86,7 +86,7 @@ DESCRIBE DETAIL persons
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/persons'
+DESCRIBE EXTENDED persons
 
 -- COMMAND ----------
 
@@ -97,4 +97,4 @@ DESCRIBE DETAIL persons
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/persons/_delta_log'
+DESCRIBE HISTORY persons

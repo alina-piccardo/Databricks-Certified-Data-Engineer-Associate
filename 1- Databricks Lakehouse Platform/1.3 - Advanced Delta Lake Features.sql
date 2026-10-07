@@ -5,7 +5,7 @@
 
 -- COMMAND ----------
 
-USE CATALOG hive_metastore
+USE CATALOG workspace
 
 -- COMMAND ----------
 
@@ -65,7 +65,7 @@ DESCRIBE HISTORY employees
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/employees'
+DESCRIBE EXTENDED employees
 
 -- COMMAND ----------
 
@@ -79,7 +79,7 @@ VACUUM employees
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/employees'
+DESCRIBE EXTENDED employees
 
 -- COMMAND ----------
 
@@ -95,7 +95,7 @@ VACUUM employees RETAIN 0 HOURS
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/employees'
+DESCRIBE EXTENDED employees
 
 -- COMMAND ----------
 
@@ -117,4 +117,4 @@ SELECT * FROM employees
 
 -- COMMAND ----------
 
--- MAGIC %fs ls 'dbfs:/user/hive/warehouse/employees'
+DESCRIBE EXTENDED employees

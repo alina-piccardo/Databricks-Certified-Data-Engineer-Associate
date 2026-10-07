@@ -27,7 +27,7 @@ def download_dataset(source, target):
 
 data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
 dataset_bookstore = 'dbfs:/mnt/demo-datasets/bookstore'
-data_catalog = 'hive_metastore'
+data_catalog = 'workspace'
 spark.conf.set(f"dataset.bookstore", dataset_bookstore)
 spark.conf.set("fs.s3a.endpoint", "s3.eu-west-3.amazonaws.com")
 spark.conf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")

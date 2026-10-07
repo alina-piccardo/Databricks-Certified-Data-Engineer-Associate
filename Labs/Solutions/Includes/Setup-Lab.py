@@ -70,7 +70,7 @@ def get_index(dir):
 
 # COMMAND ----------
 
-def set_current_schema(schema_name, catalog_name='hive_metastore'):
+def set_current_schema(schema_name, catalog_name='workspace'):
     spark.sql(f"USE CATALOG {catalog_name}")
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
     spark.sql(f"USE {schema_name}")
