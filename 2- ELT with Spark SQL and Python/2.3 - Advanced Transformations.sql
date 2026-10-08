@@ -7,7 +7,22 @@
 
 -- COMMAND ----------
 
--- MAGIC %run ../Includes/Copy-Datasets
+-- DBTITLE 1,Setup: Copy-Datasets to UC Volume
+-- MAGIC %python
+-- MAGIC data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+-- MAGIC dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+-- MAGIC data_catalog = 'workspace'
+-- MAGIC
+-- MAGIC # Copy dataset from S3 to UC volume (only needed once)
+-- MAGIC if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+-- MAGIC     print("Copying bookstore dataset from S3 to UC volume...")
+-- MAGIC     dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+-- MAGIC     print("Copy complete!")
+-- MAGIC else:
+-- MAGIC     print(f"Dataset already available at {dataset_bookstore}")
+-- MAGIC
+-- MAGIC # spark.conf.set for custom keys is not available on Serverless Spark Connect
+-- MAGIC # SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 -- COMMAND ----------
 
@@ -25,12 +40,17 @@ DESCRIBE customers
 
 -- COMMAND ----------
 
+-- MAGIC %md
+-- MAGIC Spark SQL has built-in funcionality to directly interact with JSON data stored as strings, we can simply use the colon syntax to traverse nested data structures
+
+-- COMMAND ----------
+
 SELECT customer_id, profile:first_name, profile:address:country 
 FROM customers
 
 -- COMMAND ----------
 
-SELECT from_json(profile) AS profile_struct
+SELECT from_json(profile, schema_of_json('{"first_name":"Dniren","last_name":"Abby","gender":"Female","address":{"street":"768 Mesta Terrace","city":"Annecy","country":"France"}}')) AS profile_struct
   FROM customers;
 
 -- COMMAND ----------
@@ -76,6 +96,11 @@ FROM orders
 
 -- COMMAND ----------
 
+-- MAGIC %md
+-- MAGIC The explode function allows us to put each element of an array on its own row
+
+-- COMMAND ----------
+
 SELECT order_id, customer_id, explode(books) AS book 
 FROM orders
 
@@ -83,6 +108,11 @@ FROM orders
 
 -- MAGIC %md
 -- MAGIC ## Collecting Rows
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC The collect_set aggregation function allows us to collect unique values for a field, including fields within arrays 
 
 -- COMMAND ----------
 
@@ -132,7 +162,7 @@ SELECT * FROM orders_enriched
 -- COMMAND ----------
 
 CREATE OR REPLACE TEMP VIEW orders_updates
-AS SELECT * FROM parquet.`${dataset.bookstore}/orders-new`;
+AS SELECT * FROM parquet.`/Volumes/workspace/default/bookstore_data/orders-new`;
 
 SELECT * FROM orders 
 UNION 

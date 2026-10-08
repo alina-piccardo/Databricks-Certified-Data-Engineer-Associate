@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 def path_exists(path):
   try:
     dbutils.fs.ls(path)

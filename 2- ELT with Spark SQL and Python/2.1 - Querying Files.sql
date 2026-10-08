@@ -12,7 +12,23 @@
 
 -- COMMAND ----------
 
--- MAGIC %run ../Includes/Copy-Datasets
+-- DBTITLE 1,Setup: Copy-Datasets to UC Volume
+-- MAGIC %python
+-- MAGIC data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+-- MAGIC dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+-- MAGIC data_catalog = 'workspace'
+-- MAGIC
+-- MAGIC # Copy dataset from S3 to UC volume (only needed once)
+-- MAGIC from pyspark.sql.functions import col
+-- MAGIC if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+-- MAGIC     print("Copying bookstore dataset from S3 to UC volume...")
+-- MAGIC     dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+-- MAGIC     print("Copy complete!")
+-- MAGIC else:
+-- MAGIC     print(f"Dataset already available at {dataset_bookstore}")
+-- MAGIC
+-- MAGIC # spark.conf.set for custom keys is not available on Serverless Spark Connect
+-- MAGIC # SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 -- COMMAND ----------
 
@@ -22,25 +38,25 @@
 
 -- COMMAND ----------
 
-SELECT * FROM json.`${dataset.bookstore}/customers-json/export_001.json`
+SELECT * FROM json.`/Volumes/workspace/default/bookstore_data/customers-json/export_001.json`
 
 -- COMMAND ----------
 
-SELECT * FROM json.`${dataset.bookstore}/customers-json/export_*.json`
+SELECT * FROM json.`/Volumes/workspace/default/bookstore_data/customers-json/export_*.json`
 
 -- COMMAND ----------
 
-SELECT * FROM json.`${dataset.bookstore}/customers-json`
+SELECT * FROM json.`/Volumes/workspace/default/bookstore_data/customers-json`
 
 -- COMMAND ----------
 
-SELECT count(*) FROM json.`${dataset.bookstore}/customers-json`
+SELECT count(*) FROM json.`/Volumes/workspace/default/bookstore_data/customers-json`
 
 -- COMMAND ----------
 
  SELECT *,
-    input_file_name() source_file
-  FROM json.`${dataset.bookstore}/customers-json`;
+    _metadata.file_path source_file
+  FROM json.`/Volumes/workspace/default/bookstore_data/customers-json`;
 
 -- COMMAND ----------
 
@@ -49,7 +65,7 @@ SELECT count(*) FROM json.`${dataset.bookstore}/customers-json`
 
 -- COMMAND ----------
 
-SELECT * FROM text.`${dataset.bookstore}/customers-json`
+SELECT * FROM text.`/Volumes/workspace/default/bookstore_data/customers-json`
 
 -- COMMAND ----------
 
@@ -58,7 +74,7 @@ SELECT * FROM text.`${dataset.bookstore}/customers-json`
 
 -- COMMAND ----------
 
-SELECT * FROM binaryFile.`${dataset.bookstore}/customers-json`
+SELECT * FROM binaryFile.`/Volumes/workspace/default/bookstore_data/customers-json`
 
 -- COMMAND ----------
 
@@ -68,18 +84,26 @@ SELECT * FROM binaryFile.`${dataset.bookstore}/customers-json`
 
 -- COMMAND ----------
 
-SELECT * FROM csv.`${dataset.bookstore}/books-csv`
+SELECT * FROM csv.`/Volumes/workspace/default/bookstore_data/books-csv`
 
 -- COMMAND ----------
 
-CREATE TABLE books_csv
-  (book_id STRING, title STRING, author STRING, category STRING, price DOUBLE)
+CREATE OR REPLACE TEMP VIEW books_csv_tmp
 USING CSV
 OPTIONS (
+  path = "/Volumes/workspace/default/bookstore_data/books-csv",
   header = "true",
   delimiter = ";"
-)
-LOCATION "${dataset.bookstore}/books-csv"
+);
+
+CREATE OR REPLACE TABLE books_csv AS
+SELECT
+  book_id,
+  title,
+  author,
+  category,
+  CAST(price AS DOUBLE) AS price
+FROM books_csv_tmp
 
 -- COMMAND ----------
 
@@ -125,7 +149,9 @@ SELECT COUNT(*) FROM books_csv
 
 -- COMMAND ----------
 
-REFRESH TABLE books_csv
+-- REFRESH TABLE is not supported on serverless compute.
+-- Managed Delta tables maintain metadata automatically; no refresh needed.
+SELECT 'REFRESH TABLE not needed for managed Delta tables on serverless' AS note
 
 -- COMMAND ----------
 
@@ -139,14 +165,14 @@ SELECT COUNT(*) FROM books_csv
 -- COMMAND ----------
 
 CREATE TABLE customers AS
-SELECT * FROM json.`${dataset.bookstore}/customers-json`;
+SELECT * FROM json.`/Volumes/workspace/default/bookstore_data/customers-json`;
 
 DESCRIBE EXTENDED customers;
 
 -- COMMAND ----------
 
 CREATE TABLE books_unparsed AS
-SELECT * FROM csv.`${dataset.bookstore}/books-csv`;
+SELECT * FROM csv.`/Volumes/workspace/default/bookstore_data/books-csv`;
 
 SELECT * FROM books_unparsed;
 
@@ -156,7 +182,7 @@ CREATE TEMP VIEW books_tmp_vw
    (book_id STRING, title STRING, author STRING, category STRING, price DOUBLE)
 USING CSV
 OPTIONS (
-  path = "${dataset.bookstore}/books-csv/export_*.csv",
+  path = "/Volumes/workspace/default/bookstore_data/books-csv/export_*.csv",
   header = "true",
   delimiter = ";"
 );
