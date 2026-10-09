@@ -1,5 +1,23 @@
 # Databricks notebook source
-# MAGIC %run ../Includes/Copy-Datasets
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
+# DBTITLE 1,Setup: Copy-Datasets to UC Volume
+data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+data_catalog = 'workspace'
+
+# Copy dataset from S3 to UC volume (only needed once)
+if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+    print("Copying bookstore dataset from S3 to UC volume...")
+    dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+    print("Copy complete!")
+else:
+    print(f"Dataset already available at {dataset_bookstore}")
+
+# spark.conf.set for custom keys is not available on Serverless Spark Connect
+# SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 # COMMAND ----------
 

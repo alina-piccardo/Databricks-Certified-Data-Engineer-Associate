@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md-sandbox
 # MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
@@ -7,7 +11,21 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/Copy-Datasets
+# DBTITLE 1,Setup: Copy-Datasets to UC Volume
+data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+data_catalog = 'workspace'
+
+# Copy dataset from S3 to UC volume (only needed once)
+if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+    print("Copying bookstore dataset from S3 to UC volume...")
+    dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+    print("Copy complete!")
+else:
+    print(f"Dataset already available at {dataset_bookstore}")
+
+# spark.conf.set for custom keys is not available on Serverless Spark Connect
+# SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 # COMMAND ----------
 
@@ -30,8 +48,14 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM books_streaming_tmp_vw
+stream = (spark.table("books_streaming_tmp_vw")
+          .writeStream
+          .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/books_streaming_display")
+          .outputMode("append")
+          .trigger(availableNow=True)
+          .table("books_streaming_display"))
+stream.awaitTermination()
+display(spark.table("books_streaming_display"))
 
 # COMMAND ----------
 
@@ -40,10 +64,18 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT author, count(book_id) AS total_books
-# MAGIC FROM books_streaming_tmp_vw
-# MAGIC GROUP BY author
+from pyspark.sql.functions import count
+
+stream = (spark.table("books_streaming_tmp_vw")
+          .groupBy("author")
+          .agg(count("book_id").alias("total_books"))
+          .writeStream
+          .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/books_streaming_agg")
+          .outputMode("complete")
+          .trigger(availableNow=True)
+          .table("books_streaming_agg"))
+stream.awaitTermination()
+display(spark.table("books_streaming_agg"))
 
 # COMMAND ----------
 
@@ -53,10 +85,18 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC  SELECT * 
-# MAGIC  FROM books_streaming_tmp_vw
-# MAGIC  ORDER BY author
+# Note: ORDER BY is not supported in streaming queries without a watermark.
+# This cell demonstrates that limitation. On Serverless, a checkpoint location
+# is also required to attempt the query.
+stream = (spark.table("books_streaming_tmp_vw")
+          .orderBy("author")
+          .writeStream
+          .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/books_streaming_orderby")
+          .outputMode("append")
+          .trigger(availableNow=True)
+          .table("books_streaming_orderby"))
+stream.awaitTermination()
+display(spark.table("books_streaming_orderby"))
 
 # COMMAND ----------
 
@@ -66,21 +106,22 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC CREATE OR REPLACE TEMP VIEW author_counts_tmp_vw AS (
-# MAGIC   SELECT author, count(book_id) AS total_books
-# MAGIC   FROM books_streaming_tmp_vw
-# MAGIC   GROUP BY author
-# MAGIC )
+from pyspark.sql.functions import count
+
+(spark.table("books_streaming_tmp_vw")
+      .groupBy("author")
+      .agg(count("book_id").alias("total_books"))
+      .createOrReplaceTempView("author_counts_tmp_vw"))
 
 # COMMAND ----------
 
 (spark.table("author_counts_tmp_vw")                               
       .writeStream  
-      .trigger(processingTime='4 seconds')
+      .trigger(availableNow=True)
       .outputMode("complete")
-      .option("checkpointLocation", "dbfs:/mnt/demo/author_counts_checkpoint")
+      .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/author_counts")
       .table("author_counts")
+      .awaitTermination()
 )
 
 # COMMAND ----------
@@ -121,7 +162,7 @@
       .writeStream           
       .trigger(availableNow=True)
       .outputMode("complete")
-      .option("checkpointLocation", "dbfs:/mnt/demo/author_counts_checkpoint")
+      .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/author_counts")
       .table("author_counts")
       .awaitTermination()
 )

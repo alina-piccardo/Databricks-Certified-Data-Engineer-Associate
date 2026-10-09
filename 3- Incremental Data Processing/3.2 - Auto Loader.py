@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md-sandbox
 # MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
@@ -7,7 +11,50 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/Copy-Datasets
+# DBTITLE 1,Setup: Copy-Datasets to UC Volume
+data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+data_catalog = 'workspace'
+
+# Copy dataset from S3 to UC volume (only needed once)
+if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+    print("Copying bookstore dataset from S3 to UC volume...")
+    dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+    print("Copy complete!")
+else:
+    print(f"Dataset already available at {dataset_bookstore}")
+
+# Helper functions for streaming data simulation (replaces Includes/Copy-Datasets)
+def get_index(dir):
+    files = dbutils.fs.ls(dir)
+    index = 0
+    if files:
+        file = max(files).name
+        index = int(file.rsplit('.', maxsplit=1)[0])
+    return index+1
+
+streaming_dir = f"{dataset_bookstore}/orders-streaming"
+raw_dir = f"{dataset_bookstore}/orders-raw"
+
+def load_file(current_index):
+    latest_file = f"{str(current_index).zfill(2)}.parquet"
+    print(f"Loading {latest_file} file to the bookstore dataset")
+    dbutils.fs.cp(f"{streaming_dir}/{latest_file}", f"{raw_dir}/{latest_file}")
+
+def load_new_data(all=False):
+    index = get_index(raw_dir)
+    if index >= 10:
+        print("No more data to load\n")
+    elif all == True:
+        while index <= 10:
+            load_file(index)
+            index += 1
+    else:
+        load_file(index)
+        index += 1
+
+# spark.conf.set for custom keys is not available on Serverless Spark Connect
+# SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 # COMMAND ----------
 
@@ -31,11 +78,13 @@ display(files)
 (spark.readStream
         .format("cloudFiles")
         .option("cloudFiles.format", "parquet")
-        .option("cloudFiles.schemaLocation", "dbfs:/mnt/demo/orders_checkpoint")
+        .option("cloudFiles.schemaLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders")
         .load(f"{dataset_bookstore}/orders-raw")
       .writeStream
-        .option("checkpointLocation", "dbfs:/mnt/demo/orders_checkpoint")
+        .trigger(availableNow=True)
+        .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders")
         .table("orders_updates")
+        .awaitTermination()
 )
 
 # COMMAND ----------
@@ -92,4 +141,4 @@ display(files)
 
 # COMMAND ----------
 
-dbutils.fs.rm("dbfs:/mnt/demo/orders_checkpoint", True)
+dbutils.fs.rm("/Volumes/workspace/default/bookstore_data/checkpoints/orders", True)

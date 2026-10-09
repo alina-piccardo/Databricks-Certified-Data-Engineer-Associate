@@ -7,11 +7,31 @@
 
 -- COMMAND ----------
 
--- MAGIC %run ../Includes/Copy-Datasets
+-- DBTITLE 1,Setup: Copy-Datasets to UC Volume
+-- MAGIC %python
+-- MAGIC data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+-- MAGIC dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+-- MAGIC data_catalog = 'workspace'
+-- MAGIC
+-- MAGIC # Copy dataset from S3 to UC volume (only needed once)
+-- MAGIC if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+-- MAGIC     print("Copying bookstore dataset from S3 to UC volume...")
+-- MAGIC     dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+-- MAGIC     print("Copy complete!")
+-- MAGIC else:
+-- MAGIC     print(f"Dataset already available at {dataset_bookstore}")
+-- MAGIC
+-- MAGIC # spark.conf.set for custom keys is not available on Serverless Spark Connect
+-- MAGIC # SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 -- COMMAND ----------
 
 SELECT * FROM orders
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC You can see that the Books column is of complex data type (array of a struct type), to work directly with such a complex datatype, we need to use Higher Order Functions, as they allow you to work directly with hierarchical data like arrays and map type objects
 
 -- COMMAND ----------
 

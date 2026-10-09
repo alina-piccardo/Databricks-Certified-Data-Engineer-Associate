@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "6"
+# ///
 # MAGIC %md-sandbox
 # MAGIC
 # MAGIC <div  style="text-align: center; line-height: 0; padding-top: 9px;">
@@ -7,7 +11,50 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/Copy-Datasets
+# DBTITLE 1,Setup: Copy-Datasets to UC Volume
+data_source_uri = "s3://dalhussein-courses/datasets/bookstore/v1/"
+dataset_bookstore = '/Volumes/workspace/default/bookstore_data'
+data_catalog = 'workspace'
+
+# Copy dataset from S3 to UC volume (only needed once)
+if len(dbutils.fs.ls(dataset_bookstore)) == 0:
+    print("Copying bookstore dataset from S3 to UC volume...")
+    dbutils.fs.cp(data_source_uri, f"{dataset_bookstore}/", True)
+    print("Copy complete!")
+else:
+    print(f"Dataset already available at {dataset_bookstore}")
+
+# Helper functions for streaming data simulation (replaces Includes/Copy-Datasets)
+def get_index(dir):
+    files = dbutils.fs.ls(dir)
+    index = 0
+    if files:
+        file = max(files).name
+        index = int(file.rsplit('.', maxsplit=1)[0])
+    return index+1
+
+streaming_dir = f"{dataset_bookstore}/orders-streaming"
+raw_dir = f"{dataset_bookstore}/orders-raw"
+
+def load_file(current_index):
+    latest_file = f"{str(current_index).zfill(2)}.parquet"
+    print(f"Loading {latest_file} file to the bookstore dataset")
+    dbutils.fs.cp(f"{streaming_dir}/{latest_file}", f"{raw_dir}/{latest_file}")
+
+def load_new_data(all=False):
+    index = get_index(raw_dir)
+    if index >= 10:
+        print("No more data to load\n")
+    elif all == True:
+        while index <= 10:
+            load_file(index)
+            index += 1
+    else:
+        load_file(index)
+        index += 1
+
+# spark.conf.set for custom keys is not available on Serverless Spark Connect
+# SQL cells use the volume path directly instead of ${dataset.bookstore}
 
 # COMMAND ----------
 
@@ -31,7 +78,7 @@ display(files)
 (spark.readStream
     .format("cloudFiles")
     .option("cloudFiles.format", "parquet")
-    .option("cloudFiles.schemaLocation", "dbfs:/mnt/demo/checkpoints/orders_raw")
+    .option("cloudFiles.schemaLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders_raw")
     .load(f"{dataset_bookstore}/orders-raw")
     .createOrReplaceTempView("orders_raw_temp"))
 
@@ -45,14 +92,20 @@ display(files)
 
 # MAGIC %sql
 # MAGIC CREATE OR REPLACE TEMPORARY VIEW orders_tmp AS (
-# MAGIC   SELECT *, current_timestamp() arrival_time, input_file_name() source_file
+# MAGIC   SELECT *, current_timestamp() arrival_time
 # MAGIC   FROM orders_raw_temp
 # MAGIC )
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM orders_tmp
+stream = (spark.table("orders_tmp")
+          .writeStream
+          .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders_tmp_display")
+          .outputMode("append")
+          .trigger(availableNow=True)
+          .table("orders_tmp_display"))
+stream.awaitTermination()
+display(spark.table("orders_tmp_display"))
 
 # COMMAND ----------
 
@@ -64,9 +117,11 @@ display(files)
 (spark.table("orders_tmp")
       .writeStream
       .format("delta")
-      .option("checkpointLocation", "dbfs:/mnt/demo/checkpoints/orders_bronze")
+      .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders_bronze")
       .outputMode("append")
-      .table("orders_bronze"))
+      .trigger(availableNow=True)
+      .table("orders_bronze")
+      .awaitTermination())
 
 # COMMAND ----------
 
@@ -122,9 +177,11 @@ load_new_data()
 (spark.table("orders_enriched_tmp")
       .writeStream
       .format("delta")
-      .option("checkpointLocation", "dbfs:/mnt/demo/checkpoints/orders_silver")
+      .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/orders_silver")
       .outputMode("append")
-      .table("orders_silver"))
+      .trigger(availableNow=True)
+      .table("orders_silver")
+      .awaitTermination())
 
 # COMMAND ----------
 
@@ -166,7 +223,7 @@ load_new_data()
       .writeStream
       .format("delta")
       .outputMode("complete")
-      .option("checkpointLocation", "dbfs:/mnt/demo/checkpoints/daily_customer_books")
+      .option("checkpointLocation", "/Volumes/workspace/default/bookstore_data/checkpoints/daily_customer_books")
       .trigger(availableNow=True)
       .table("daily_customer_books"))
 

@@ -4,10 +4,12 @@ This document records all changes made to adapt the course notebooks for a
 Unity Catalog-only Serverless workspace. The original notebooks were written for
 classic clusters with DBFS mounts and unrestricted Spark configuration.
 
-Covers three notebooks:
+Covers five notebooks:
 - **2.1 - Querying Files**
 - **2.2 - Writing to Tables**
 - **2.3 - Advanced Transformations**
+- **2.4 - Higher Order Functions and SQL UDFs**
+- **2.5 - Data Transformations with PySpark**
 
 ## Environment
 
@@ -250,13 +252,57 @@ on Serverless, causing `PATH_NOT_FOUND`.
 **Fix:** Replaced `${dataset.bookstore}` with
 `/Volumes/workspace/default/bookstore_data`.
 
+### Cell 8 — `from_json` with invalid schema argument
+
+**Original:**
+```sql
+SELECT from_json(profile, 'schema') AS profile_struct
+  FROM customers;
+```
+
+**Root cause:** The second argument `'schema'` was passed as a literal string.
+Spark tried to parse it as a DDL type name and failed with
+`UNSUPPORTED_DATATYPE` because `SCHEMA` is not a valid data type.
+
+**Fix:** Replaced `'schema'` with `schema_of_json(...)` using a sample JSON
+value from the `profile` column to generate the correct DDL schema string:
+```sql
+SELECT from_json(profile, schema_of_json('{"first_name":"Dniren",...}')) AS profile_struct
+  FROM customers;
+```
+
+---
+
+## Notebook 2.4 — Higher Order Functions and SQL UDFs
+
+### Cell 2 — Setup: Copy-Datasets to UC Volume
+
+Same fix as Notebook 2.1 Cell 3: replaced `%run ../Includes/Copy-Datasets`
+with inline Python that sets `dataset_bookstore` to the UC volume path.
+
+No other cells required changes. All SQL cells reference UC tables (`orders`,
+`customers`) or create SQL functions — both work on Serverless without modification.
+
+---
+
+## Notebook 2.5 — Data Transformations with PySpark
+
+### Cell 1 — Setup: Copy-Datasets to UC Volume
+
+Same fix as Notebook 2.1 Cell 3: replaced `%run ../Includes/Copy-Datasets`
+with inline Python that sets `dataset_bookstore` to the UC volume path.
+
+No other cells required changes. All Python cells use `spark.read.table()` and
+`spark.table()` to load UC tables and perform DataFrame operations — all
+compatible with Serverless Spark Connect.
+
 ---
 
 ## Summary of Serverless Limitations Encountered
 
 | Limitation | Error Class | Affected Notebooks / Cells | Fix |
 |---|---|---|---|
-| Custom Spark config keys not settable | `CONFIG_NOT_AVAILABLE` | 2.1 Cell 3; 2.2 Cell 2; 2.3 Cell 2 | Inline Python variable + UC volume |
+| Custom Spark config keys not settable | `CONFIG_NOT_AVAILABLE` | 2.1 Cell 3; 2.2 Cell 2; 2.3 Cell 2; 2.4 Cell 2; 2.5 Cell 1 | Inline Python variable + UC volume |
 | `${param}` SQL substitution fails | `PATH_NOT_FOUND` | 2.1 Cells 5–8, 11, 13, 15, 27, 28, 29; 2.2 Cells 3, 6, 8, 10, 12, 15, 16; 2.3 Cell 23 | Literal volume path |
 | `input_file_name()` blocked | `UC_COMMAND_NOT_SUPPORTED` | 2.1 Cell 9 | `_metadata.file_path` |
 | `CREATE TABLE ... LOCATION` blocked | `Missing cloud file system scheme` / `dbfs not supported` | 2.1 Cell 16 | Temp view + CTAS to Delta |
@@ -264,3 +310,4 @@ on Serverless, causing `PATH_NOT_FOUND`.
 | DBFS root disabled | `DBFS_DISABLED` | 2.1 Cell 3 (original path) | UC volume |
 | Managed non-Delta tables blocked | `MANAGED_TABLE_FORMAT` | 2.1 Cell 16 (alt approach) | CTAS with default Delta |
 | Table already exists on re-run | `TABLE_OR_VIEW_ALREADY_EXISTS` | 2.2 Cell 3 | `CREATE OR REPLACE TABLE` |
+| Invalid `from_json` schema argument | `UNSUPPORTED_DATATYPE` | 2.3 Cell 8 | `schema_of_json()` with sample JSON |

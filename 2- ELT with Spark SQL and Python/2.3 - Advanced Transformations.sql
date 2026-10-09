@@ -203,3 +203,44 @@ SELECT * FROM (
 );
 
 SELECT * FROM transactions
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ### Legacy JSON Querying Syntax
+-- MAGIC Before the introduction of the colon syntax (`profile:first_name`) for querying semi-structured data, Spark SQL commonly used the `get_json_object()` function to extract values from JSON strings. This older approach uses JSONPath expressions such as `$.first_name` and treats JSON as plain text, always returning values as strings.
+-- MAGIC
+-- MAGIC #### Example using colon syntax:
+-- MAGIC
+-- MAGIC `SELECT customer_id,
+-- MAGIC        profile:first_name,
+-- MAGIC        profile:address:country
+-- MAGIC FROM customers;`
+-- MAGIC
+-- MAGIC
+-- MAGIC #### Equivalent query using the older syntax:
+-- MAGIC
+-- MAGIC `SELECT customer_id,
+-- MAGIC        get_json_object(profile, '$.first_name') AS first_name,
+-- MAGIC        get_json_object(profile, '$.address.country') AS country
+-- MAGIC FROM customers;`
+-- MAGIC
+-- MAGIC
+-- MAGIC get_json_object() is still supported and useful for compatibility with older Spark code, and you may still encounter it in existing codebases and exam questions, so it is important to recognize both syntaxes.
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ###Null-Safe Join
+-- MAGIC To handle comparisons where NULL values should be treated as equal to other NULL values, Spark provides the null-safe equal operator, which is written as <=>. For example:
+-- MAGIC
+-- MAGIC SELECT *
+-- MAGIC FROM orders o
+-- MAGIC INNER JOIN customers c
+-- MAGIC ON o.customer_id <=> c.customer_id;
+-- MAGIC
+-- MAGIC
+-- MAGIC Here, o.customer_id <=> c.customer_id returns true if both values are equal, or if both values are NULL. Otherwise, it returns false.
+
+-- COMMAND ----------
+
